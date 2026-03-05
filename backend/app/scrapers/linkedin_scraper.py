@@ -27,7 +27,8 @@ class LinkedInScraper(BaseScraper):
         location: str = "",
         limit: int = 30,
         keywords: Optional[List[str]] = None,
-        industry: str = ""
+        industry: str = "",
+        recent_days: Optional[int] = None
     ) -> List[Dict]:
         """
         Scrape jobs from LinkedIn.
@@ -44,6 +45,8 @@ class LinkedInScraper(BaseScraper):
         """
         # Target at least 50 by default, up to max_jobs.
         limit = min(max(limit, 50), self.max_jobs)
+        effective_recent_days = recent_days if recent_days is not None else self.recent_days
+        effective_recent_days = max(1, int(effective_recent_days))
         title = (title or "").strip() or "software engineer"
         location = (location or "").strip()
         print(f"[LinkedIn] Starting scrape with title='{title}', location='{location}'")
@@ -63,10 +66,8 @@ class LinkedInScraper(BaseScraper):
             'Connection': 'keep-alive'
         }
 
-        location_variants_raw = []
-        if location:
-            location_variants_raw.append(location)
-        location_variants_raw.extend(["United States", ""])
+        # Use exact user-supplied location when provided.
+        location_variants_raw = [location] if location else [""]
         location_variants = []
         seen_locations = set()
         for loc in location_variants_raw:
@@ -76,17 +77,19 @@ class LinkedInScraper(BaseScraper):
             seen_locations.add(normalized_loc)
             location_variants.append(loc)
 
-        # Aggregate across multiple query variants to increase volume.
+        # Keep query variants focused to avoid drifting into unrelated roles.
         query_variants_raw = [
             effective_query,
             title,
             title_short,
-            f"{title_short} engineer".strip(),
-            f"{title_short} developer".strip(),
-            "software engineer",
-            "backend engineer",
-            "full stack engineer"
         ]
+
+        title_lower = title.lower().strip().replace(".", "")
+        if title_lower == "pm":
+            query_variants_raw.extend(["product manager", "program manager", "project manager"])
+        elif "product manager" in title_lower:
+            query_variants_raw.extend(["product manager", "product management"])
+
         query_variants = []
         seen_queries = set()
         for query_variant in query_variants_raw:
@@ -98,7 +101,7 @@ class LinkedInScraper(BaseScraper):
 
         unique_jobs: List[Dict] = []
         seen_keys = set()
-        cutoff = datetime.utcnow() - timedelta(days=self.recent_days)
+        cutoff = datetime.utcnow() - timedelta(days=effective_recent_days)
 
         for query_text in query_variants:
             if len(unique_jobs) >= limit:
@@ -114,7 +117,8 @@ class LinkedInScraper(BaseScraper):
                     query=query_text.strip(),
                     location=query_location,
                     headers=headers,
-                    limit=limit
+                    limit=limit,
+                    recent_days=effective_recent_days
                 )
 
                 for job in batch:
@@ -151,7 +155,8 @@ class LinkedInScraper(BaseScraper):
         query: str,
         location: str,
         headers: Dict[str, str],
-        limit: int
+        limit: int,
+        recent_days: int
     ) -> List[Dict]:
         """Execute one LinkedIn search run and return normalized jobs."""
         all_jobs: List[Dict] = []
@@ -166,7 +171,7 @@ class LinkedInScraper(BaseScraper):
                 "keywords": query,
                 "location": location or "",
                 "start": start,
-                "f_TPR": f"r{self.recent_days * 24 * 60 * 60}",
+                "f_TPR": f"r{recent_days * 24 * 60 * 60}",
                 "sortBy": "DD"
             }
             start += page_size

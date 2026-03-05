@@ -83,10 +83,10 @@ class ScrapeJobsRequest(BaseModel):
         description="Comma-separated locations (e.g., 'New York, Remote, San Francisco')"
     )
     target_jobs: int = Field(
-        default=200,
+        default=25,
         ge=1,
         le=200,
-        description="Target number of jobs to scrape (system targets 100-200)"
+        description="Target number of jobs to scrape"
     )
     recent_days: int = Field(
         default=10,
@@ -103,7 +103,7 @@ class ScrapeJobsResponse(BaseModel):
     message: str = "Scraping task started"
     parsed_roles: List[str] = Field(default_factory=list)
     parsed_locations: List[str] = Field(default_factory=list)
-    target_jobs: int = 200
+    target_jobs: int = 25
 
 
 class ScrapingStatusResponse(BaseModel):

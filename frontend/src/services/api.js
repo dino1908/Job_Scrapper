@@ -3,7 +3,10 @@
  */
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const RAW_API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:8000').trim();
+const API_URL = RAW_API_URL
+  .replace(/\/+$/, '')      // remove trailing slashes
+  .replace(/\/api$/i, '');  // remove accidental /api suffix
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
@@ -17,13 +20,13 @@ const api = axios.create({
  * @param {Object} params - Scraping params
  * @param {string} params.roleTitles - Comma-separated role titles
  * @param {string} params.locations - Comma-separated locations
- * @param {number} params.targetJobs - Target jobs (100-500)
+ * @param {number} params.targetJobs - Target jobs (1-200)
  * @returns {Promise} - Task information
  */
 export const startScraping = async ({
   roleTitles,
   locations,
-  targetJobs = 200,
+  targetJobs = 25,
 }) => {
   const payload = {
     role_titles: roleTitles,
@@ -55,7 +58,7 @@ export const getScrapingStatus = async (taskId) => {
  */
 export const getScrapedJobs = async (options = {}) => {
   const payload = {
-    limit: options.limit || 200,
+    limit: options.limit ?? 25,
     task_id: options.taskId || null,
   };
 

@@ -2,6 +2,7 @@
 Scraper orchestrator to coordinate parallel job scraping from multiple sources.
 """
 import asyncio
+import inspect
 from typing import List, Dict, Optional, Callable
 from concurrent.futures import ThreadPoolExecutor
 import traceback
@@ -30,6 +31,7 @@ class ScraperOrchestrator:
         keywords: Optional[List[str]] = None,
         industry: str = "",
         location: str = "",
+        recent_days: Optional[int] = None,
         limit_per_source: int = 50,
         sources: Optional[List[str]] = None,
         progress_callback: Optional[Callable] = None
@@ -75,6 +77,7 @@ class ScraperOrchestrator:
                     keywords,
                     industry,
                     location,
+                    recent_days,
                     limit_per_source
                 ): source_name
                 for source_name, scraper in active_scrapers.items()
@@ -115,6 +118,7 @@ class ScraperOrchestrator:
         keywords: Optional[List[str]] = None,
         industry: str = "",
         location: str = "",
+        recent_days: Optional[int] = None,
         limit_per_source: int = 50,
         sources: Optional[List[str]] = None
     ) -> Dict[str, List[Dict]]:
@@ -149,6 +153,7 @@ class ScraperOrchestrator:
                     keywords,
                     industry,
                     location,
+                    recent_days,
                     limit_per_source
                 ): source_name
                 for source_name, scraper in active_scrapers.items()
@@ -177,6 +182,7 @@ class ScraperOrchestrator:
         keywords: Optional[List[str]],
         industry: str,
         location: str,
+        recent_days: Optional[int],
         limit: int
     ) -> List[Dict]:
         """
@@ -196,12 +202,23 @@ class ScraperOrchestrator:
         """
         try:
             print(f"[Orchestrator] Starting {source_name}...")
+            scrape_kwargs = {
+                "title": title,
+                "location": location,
+                "limit": limit,
+                "keywords": keywords,
+                "industry": industry,
+            }
+            # Pass recent_days only to scrapers that support it.
+            try:
+                params = inspect.signature(scraper.scrape_jobs).parameters
+                if recent_days is not None and "recent_days" in params:
+                    scrape_kwargs["recent_days"] = recent_days
+            except Exception:
+                pass
+
             jobs = scraper.scrape_jobs(
-                title=title,
-                location=location,
-                limit=limit,
-                keywords=keywords,
-                industry=industry
+                **scrape_kwargs
             )
             return jobs if jobs else []
         except Exception as e:

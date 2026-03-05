@@ -18,6 +18,7 @@ from ..schemas import (
     JobsResponse,
     JobSchema,
 )
+from ..services.job_relevance_screener import job_relevance_screener
 from ..services.scraper_orchestrator import scraper_orchestrator
 
 router = APIRouter()
@@ -38,6 +39,19 @@ def _parse_csv_list(value: str) -> List[str]:
         seen.add(normalized)
         parsed.append(cleaned)
     return parsed
+
+
+def _job_dedupe_key(job: dict):
+    """Generate stable dedupe key for scraped jobs."""
+    apply_url = (job.get("apply_url") or "").strip().lower()
+    if apply_url:
+        return ("url", apply_url)
+    return (
+        "fallback",
+        (job.get("title") or "").strip().lower(),
+        (job.get("company") or "").strip().lower(),
+        (job.get("location") or "").strip().lower(),
+    )
 
 
 # ==================== Job Scraping ====================
@@ -67,8 +81,7 @@ async def scrape_jobs(
     if not parsed_locations:
         parsed_locations = [""]
 
-    # System target: min 100, max 200
-    target_jobs = max(100, min(request.target_jobs, 200))
+    target_jobs = request.target_jobs
 
     # Keep a lightweight session row to satisfy ScrapingTask foreign key.
     session = UserSession(
@@ -123,7 +136,12 @@ def _background_scraping_task(
     recent_days: int
 ):
     """
-    Background task to scrape LinkedIn jobs for all role/location combinations.
+    Background task to scrape LinkedIn jobs for role/location combinations.
+
+    Behavior:
+    - scrape recent window first (recent_days)
+    - screen with Mistral for strict role/location relevance
+    - if target count is not met, expand backward window and keep going
     """
     from ..database import SessionLocal
 
@@ -134,6 +152,7 @@ def _background_scraping_task(
         task.status = "running"
         task.started_at = datetime.utcnow()
         task.progress = 1
+        task.sources_completed = []
         db.commit()
 
         # Replace previous result set with the latest run.
@@ -141,73 +160,135 @@ def _background_scraping_task(
         db.commit()
 
         combos = [(role, location) for role in roles for location in locations]
-        total_combos = len(combos)
+        total_combos = max(1, len(combos))
+        if not combos:
+            raise ValueError("No role/location combinations found")
 
         collected_jobs = []
-        seen = set()
-        cutoff = datetime.utcnow() - timedelta(days=recent_days)
+        selected_keys = set()
+        screening_cache = {}
+        saved_count = 0
 
-        for index, (role, location) in enumerate(combos):
-            if len(collected_jobs) >= target_jobs:
-                break
+        initial_window_days = max(1, int(recent_days))
+        window_step_days = max(5, initial_window_days)
+        max_backfill_days = 180
+        max_rounds = ((max_backfill_days - initial_window_days) // window_step_days) + 1
+        current_window_days = initial_window_days
+        round_index = 0
 
-            remaining = target_jobs - len(collected_jobs)
-            per_combo_limit = min(200, max(100, remaining))
+        while len(collected_jobs) < target_jobs and current_window_days <= max_backfill_days:
+            round_index += 1
+            round_added = 0
 
-            results = scraper_orchestrator.scrape_all_sources_sync(
-                title=role,
-                keywords=None,
-                industry="",
-                location=location,
-                limit_per_source=per_combo_limit,
-                sources=["linkedin"]
+            print(
+                f"[API] Task {task_id}: round {round_index}/{max_rounds}, "
+                f"window={current_window_days}d, collected={len(collected_jobs)}/{target_jobs}"
             )
-            flat_jobs = scraper_orchestrator.get_all_jobs_flat(results)
+            task.sources_completed = [f"linkedin:last_{current_window_days}_days"]
+            db.commit()
 
-            for job in flat_jobs:
-                posted_date = job.get("posted_date")
-                if posted_date and posted_date < cutoff:
-                    continue
+            cutoff = datetime.utcnow() - timedelta(days=current_window_days)
 
-                apply_url = (job.get("apply_url") or "").strip().lower()
-                if apply_url:
-                    key = ("url", apply_url)
-                else:
-                    key = (
-                        "fallback",
-                        (job.get("title") or "").strip().lower(),
-                        (job.get("company") or "").strip().lower(),
-                        (job.get("location") or "").strip().lower(),
-                    )
-                if key in seen:
-                    continue
-                seen.add(key)
-                collected_jobs.append(job)
-
+            for combo_index, (role, location) in enumerate(combos):
                 if len(collected_jobs) >= target_jobs:
                     break
 
-            task.progress = min(95, int(((index + 1) / max(1, total_combos)) * 100))
-            db.commit()
+                remaining = target_jobs - len(collected_jobs)
+                # Fetch deeper than remaining because strict screening removes many jobs.
+                per_combo_limit = min(250, max(120, remaining * 3))
+                new_jobs_to_persist = []
 
-        collected_jobs.sort(
-            key=lambda job: job.get("posted_date") or datetime.min,
-            reverse=True
-        )
-        final_jobs = collected_jobs[:target_jobs]
+                results = scraper_orchestrator.scrape_all_sources_sync(
+                    title=role,
+                    keywords=None,
+                    industry="",
+                    location=location,
+                    recent_days=current_window_days,
+                    limit_per_source=per_combo_limit,
+                    sources=["linkedin"]
+                )
+                flat_jobs = scraper_orchestrator.get_all_jobs_flat(results)
 
-        saved_count = 0
-        for job_data in final_jobs:
-            existing = db.query(Job).filter(
-                Job.apply_url == job_data["apply_url"],
-                Job.source == job_data["source"]
-            ).first()
+                # Build unscreened list; skip already-selected jobs and stale postings.
+                candidates = []
+                local_keys = set()
+                role_key = role.strip().lower()
+                location_key = location.strip().lower()
+                for job in flat_jobs:
+                    posted_date = job.get("posted_date")
+                    if posted_date and posted_date < cutoff:
+                        continue
 
-            if not existing:
-                db.add(Job(**job_data))
-                saved_count += 1
+                    dedupe_key = _job_dedupe_key(job)
+                    if dedupe_key in selected_keys or dedupe_key in local_keys:
+                        continue
+                    local_keys.add(dedupe_key)
 
-        db.commit()
+                    cache_key = (dedupe_key, role_key, location_key)
+                    cached_relevant = screening_cache.get(cache_key)
+                    if cached_relevant is True:
+                        collected_jobs.append(job)
+                        selected_keys.add(dedupe_key)
+                        new_jobs_to_persist.append(job)
+                        round_added += 1
+                        if len(collected_jobs) >= target_jobs:
+                            break
+                        continue
+                    if cached_relevant is False:
+                        continue
+
+                    candidates.append(job)
+
+                if len(collected_jobs) < target_jobs and candidates:
+                    screened_jobs = job_relevance_screener.filter_jobs(
+                        candidates,
+                        role=role,
+                        location=location
+                    )
+                    screened_keys = {_job_dedupe_key(job) for job in screened_jobs}
+                    for candidate in candidates:
+                        c_key = _job_dedupe_key(candidate)
+                        c_cache_key = (c_key, role_key, location_key)
+                        screening_cache[c_cache_key] = c_key in screened_keys
+
+                    for job in screened_jobs:
+                        dedupe_key = _job_dedupe_key(job)
+                        if dedupe_key in selected_keys:
+                            continue
+                        selected_keys.add(dedupe_key)
+                        collected_jobs.append(job)
+                        new_jobs_to_persist.append(job)
+                        round_added += 1
+                        if len(collected_jobs) >= target_jobs:
+                            break
+
+                if new_jobs_to_persist:
+                    for job_data in new_jobs_to_persist:
+                        apply_url = (job_data.get("apply_url") or "").strip()
+                        source = (job_data.get("source") or "").strip()
+                        if not apply_url or not source:
+                            continue
+                        db.add(Job(**job_data))
+                        saved_count += 1
+                    db.commit()
+
+                combo_progress = int(((combo_index + 1) / total_combos) * 8)
+                round_progress = int((round_index / max(1, max_rounds)) * 12)
+                count_progress = int((len(collected_jobs) / max(1, target_jobs)) * 80)
+                task.progress = min(95, max(1, count_progress + combo_progress + round_progress))
+                task.total_jobs_scraped = saved_count
+                db.commit()
+
+            if len(collected_jobs) >= target_jobs:
+                break
+
+            if round_added == 0:
+                print(
+                    f"[API] Task {task_id}: no new relevant jobs in "
+                    f"{current_window_days}d window"
+                )
+
+            current_window_days += window_step_days
 
         task.status = "completed"
         task.completed_at = datetime.utcnow()
@@ -218,7 +299,7 @@ def _background_scraping_task(
 
         print(
             f"[API] Scraping task {task_id} completed: "
-            f"{saved_count} jobs saved from {len(final_jobs)} collected"
+            f"{saved_count} jobs saved from {len(collected_jobs)} collected"
         )
 
     except Exception as exc:
@@ -264,15 +345,9 @@ def get_jobs(
     request: JobsRequest,
     db: Session = Depends(get_db)
 ):
-    """Get latest scraped jobs sorted by posted date (desc)."""
+    """Get currently available scraped jobs sorted by posted date (desc)."""
     query = db.query(Job).filter(Job.source == "linkedin")
-
-    recent_cutoff = datetime.utcnow() - timedelta(days=10)
-    recent_jobs = query.filter(Job.posted_date >= recent_cutoff).all()
-    if recent_jobs:
-        all_jobs = recent_jobs
-    else:
-        all_jobs = query.all()
+    all_jobs = query.all()
 
     all_jobs.sort(
         key=lambda job: (job.posted_date or datetime.min, job.scraped_at or datetime.min),

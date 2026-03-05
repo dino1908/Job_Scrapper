@@ -7,23 +7,67 @@ import ScrapingProgress from './components/ScrapingProgress';
 import JobList from './components/JobList';
 import {
   startScraping,
-  pollScrapingStatus,
+  getScrapingStatus,
   getScrapedJobs,
 } from './services/api';
 import './App.css';
+
+const DEFAULT_TARGET_JOBS = 25;
+const MIN_TARGET_JOBS = 1;
+const MAX_TARGET_JOBS = 200;
+const POLL_INTERVAL_MS = 2500;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function App() {
   const [step, setStep] = useState('search'); // search, scraping, results
   const [roleTitles, setRoleTitles] = useState('');
   const [locations, setLocations] = useState('');
+  const [targetJobs, setTargetJobs] = useState(String(DEFAULT_TARGET_JOBS));
   const [scrapingStatus, setScrapingStatus] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [error, setError] = useState(null);
-  const [meta, setMeta] = useState({ parsedRoles: [], parsedLocations: [], targetJobs: 200 });
+  const [meta, setMeta] = useState({
+    parsedRoles: [],
+    parsedLocations: [],
+    targetJobs: DEFAULT_TARGET_JOBS,
+  });
+
+  const pollTaskWithLiveJobs = async (taskId, jobsLimit) => {
+    while (true) {
+      const status = await getScrapingStatus(taskId);
+      setScrapingStatus(status);
+
+      try {
+        const jobsResponse = await getScrapedJobs({
+          limit: jobsLimit,
+          taskId,
+        });
+        setJobs(jobsResponse.jobs || []);
+      } catch (jobsError) {
+        // Keep polling status even if jobs endpoint briefly fails.
+      }
+
+      if (status.status === 'completed') {
+        return status;
+      }
+      if (status.status === 'failed') {
+        throw new Error(status.error_message || 'Scraping failed');
+      }
+
+      await sleep(POLL_INTERVAL_MS);
+    }
+  };
 
   const handleStartScraping = async () => {
     if (!roleTitles.trim()) {
       setError('Please enter at least one role title.');
+      return;
+    }
+
+    const parsedTargetJobs = Number(targetJobs);
+    if (!Number.isInteger(parsedTargetJobs) || parsedTargetJobs < MIN_TARGET_JOBS || parsedTargetJobs > MAX_TARGET_JOBS) {
+      setError('Please enter a number of jobs between 1 and 200.');
       return;
     }
 
@@ -35,29 +79,16 @@ function App() {
       const taskResponse = await startScraping({
         roleTitles,
         locations,
-        targetJobs: 200,
+        targetJobs: parsedTargetJobs,
       });
 
       setMeta({
         parsedRoles: taskResponse.parsed_roles || [],
         parsedLocations: taskResponse.parsed_locations || [],
-        targetJobs: taskResponse.target_jobs || 200,
+        targetJobs: taskResponse.target_jobs || parsedTargetJobs,
       });
 
-      await pollScrapingStatus(
-        taskResponse.task_id,
-        (status) => {
-          setScrapingStatus(status);
-        },
-        2000
-      );
-
-      const response = await getScrapedJobs({
-        limit: 200,
-        taskId: taskResponse.task_id,
-      });
-
-      setJobs(response.jobs || []);
+      await pollTaskWithLiveJobs(taskResponse.task_id, parsedTargetJobs);
       setStep('results');
     } catch (scrapeError) {
       const errorMsg = scrapeError.response?.data?.detail || scrapeError.message || 'Scraping failed';
@@ -118,7 +149,7 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold text-gray-900">Job Scrapper</h1>
           <p className="text-gray-600 mt-1">
-            LinkedIn latest jobs scraper (last 10 days)
+            LinkedIn jobs scraper with live incremental results
           </p>
         </div>
       </header>
@@ -161,8 +192,24 @@ function App() {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Number of Jobs (1-200)
+              </label>
+              <input
+                type="number"
+                min={MIN_TARGET_JOBS}
+                max={MAX_TARGET_JOBS}
+                step="1"
+                value={targetJobs}
+                onChange={(e) => setTargetJobs(e.target.value)}
+                placeholder={String(DEFAULT_TARGET_JOBS)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
             <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-              Target: 200 jobs | Minimum expected: 100 (if available) | Window: last 10 days
+              Target: {targetJobs || DEFAULT_TARGET_JOBS} jobs | Scrape expands backward in time until target is reached (or jobs are exhausted)
             </div>
 
             <button
@@ -191,8 +238,25 @@ function App() {
                 <div><span className="font-medium">Roles:</span> {meta.parsedRoles.join(', ') || '-'}</div>
                 <div><span className="font-medium">Locations:</span> {meta.parsedLocations.join(', ') || 'Any'}</div>
                 <div><span className="font-medium">Target Jobs:</span> {meta.targetJobs}</div>
+                <div><span className="font-medium">Available Now:</span> {jobs.length}</div>
               </div>
             </div>
+
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-800">Live Results ({jobs.length})</h3>
+              <button
+                onClick={handleDownloadExcel}
+                disabled={jobs.length === 0}
+                className={`px-5 py-2 rounded-lg text-white font-medium transition-colors duration-200 ${
+                  jobs.length === 0
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                Download Excel
+              </button>
+            </div>
+            <JobList jobs={jobs} />
           </div>
         )}
 
