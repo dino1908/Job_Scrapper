@@ -1,0 +1,37 @@
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+frontend/node_modules/
+
+# Local environments / secrets
+backend/venv/
+backend/.env
+backend/.env.secrets
+frontend/.env
+
+# Data and runtime artifacts
+backend/data/
+*.db
+*.db-journal
+*.log
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Local tool state
+.claude/
