@@ -89,10 +89,10 @@ class ScrapeJobsRequest(BaseModel):
         description="Target number of jobs to scrape"
     )
     recent_days: int = Field(
-        default=10,
+        default=1,
         ge=1,
         le=30,
-        description="Prefer jobs posted within this many recent days"
+        description="Initial recent-day window (backfill expands by 1 day per round)"
     )
 
 

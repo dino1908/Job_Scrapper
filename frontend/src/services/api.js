@@ -32,7 +32,7 @@ export const startScraping = async ({
     role_titles: roleTitles,
     locations: locations || '',
     target_jobs: targetJobs,
-    recent_days: 10,
+    recent_days: 1,
   };
 
   const response = await api.post('/scrape-jobs', payload);

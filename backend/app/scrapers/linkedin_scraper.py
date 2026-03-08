@@ -19,7 +19,7 @@ class LinkedInScraper(BaseScraper):
         self.base_url = 'https://www.linkedin.com'
         self.search_api_url = f"{self.base_url}/jobs-guest/jobs/api/seeMoreJobPostings/search"
         self.max_jobs = 200
-        self.recent_days = 10
+        self.recent_days = 1
 
     def scrape_jobs(
         self,

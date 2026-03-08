@@ -139,9 +139,9 @@ def _background_scraping_task(
     Background task to scrape LinkedIn jobs for role/location combinations.
 
     Behavior:
-    - scrape recent window first (recent_days)
+    - scrape the most recent day first
     - screen with Mistral for strict role/location relevance
-    - if target count is not met, expand backward window and keep going
+    - if target count is not met, expand backward window by 1 day each round
     """
     from ..database import SessionLocal
 
@@ -169,8 +169,8 @@ def _background_scraping_task(
         screening_cache = {}
         saved_count = 0
 
-        initial_window_days = max(1, int(recent_days))
-        window_step_days = max(5, initial_window_days)
+        initial_window_days = 1
+        window_step_days = 1
         max_backfill_days = 180
         max_rounds = ((max_backfill_days - initial_window_days) // window_step_days) + 1
         current_window_days = initial_window_days
