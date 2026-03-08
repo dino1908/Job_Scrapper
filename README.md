@@ -1,368 +1,367 @@
-# Resume-to-Job Matching Web Application
+# Job Scrapper
 
-An intelligent web application that analyzes your resume using AI, scrapes jobs from multiple sources, and ranks them by compatibility.
+Job Scrapper is a React + FastAPI application for searching LinkedIn public job listings by role and location, tracking scraping progress live, and exporting the resulting jobs to Excel.
 
-## Features
+The current app is centered on a single flow:
 
-- **AI-Powered Resume Analysis**: Uses Google Gemini/OpenAI to extract skills, experience, and preferences
-- **Multi-Source Job Scraping**: Aggregates jobs from Indeed, RemoteOK, Remotive, LinkedIn, Wellfound, and Workday
-- **Intelligent Matching**: Ranks jobs using a weighted algorithm (skills, experience, title, location, job type)
-- **Real-time Progress**: Background scraping with progress tracking
-- **RESTful API**: Clean FastAPI backend with comprehensive endpoints
+1. Enter one or more role titles.
+2. Optionally enter one or more locations.
+3. Start a background scrape.
+4. Poll progress and show live results in the UI.
+5. Export the final job list as `.xlsx`.
 
-## Tech Stack
+## What The Code Currently Does
+
+- Scrapes LinkedIn public guest job listings only.
+- Accepts comma-separated role titles and comma-separated locations.
+- Expands the search across every role/location combination.
+- Starts from the most recent 1 day of postings and backfills 1 day at a time until the target count is reached or 180 days is exhausted.
+- Stores scraped jobs in SQLite.
+- Replaces the previous stored job set whenever a new scrape starts.
+- Uses deterministic relevance filters by default.
+- Uses Mistral, when configured, to further screen jobs for strict role/location relevance.
+- Shows live progress in the frontend while scraping runs in a FastAPI background task.
+- Lets the user download the visible jobs as an Excel file.
+
+## What Is Not Currently Wired Into The App
+
+Some files in the repository are from earlier or broader plans, but they are not part of the current API/UI flow:
+
+- Resume upload is not exposed by the active FastAPI router.
+- Resume analysis is not exposed by the active FastAPI router.
+- Match scoring is not exposed by the active FastAPI router.
+- Multi-source scraping is not active in the orchestrator; only LinkedIn is enabled.
+
+## Stack
 
 ### Backend
-- **Framework**: FastAPI
-- **Database**: SQLite (SQLAlchemy ORM)
-- **Resume Parsing**: pdfplumber, PyPDF2, python-docx
-- **LLM Integration**: Google Gemini API, OpenAI API
-- **Web Scraping**: BeautifulSoup, Selenium, Playwright
-- **Matching**: scikit-learn (TF-IDF), RapidFuzz
+
+- FastAPI
+- SQLAlchemy
+- SQLite
+- Requests + BeautifulSoup for the active LinkedIn scraper
+- Optional Mistral API integration for relevance screening
 
 ### Frontend
-- **Framework**: React 18
-- **HTTP Client**: Axios
-- **File Upload**: react-dropzone
-- **Styling**: Tailwind CSS
 
-## Project Structure
+- React
+- Axios
+- Tailwind CSS
+- `xlsx` for Excel export
 
-```
+## Repository Layout
+
+```text
 Job_Scrapper/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI app
-│   │   ├── config.py               # Configuration
-│   │   ├── database.py             # Database setup
-│   │   ├── models.py               # SQLAlchemy models
-│   │   ├── schemas.py              # Pydantic schemas
-│   │   ├── api/
-│   │   │   └── routes.py           # API endpoints
+│   │   ├── api/routes.py                    # Active API endpoints
+│   │   ├── main.py                          # FastAPI app entrypoint
+│   │   ├── models.py                        # SQLite models
+│   │   ├── schemas.py                       # Request/response schemas
 │   │   ├── services/
-│   │   │   ├── resume_parser.py    # PDF/DOCX parsing
-│   │   │   ├── llm_analyzer.py     # AI analysis
-│   │   │   ├── job_matcher.py      # Matching algorithm
-│   │   │   └── scraper_orchestrator.py
-│   │   ├── scrapers/
-│   │   │   ├── base_scraper.py
-│   │   │   ├── indeed_scraper.py
-│   │   │   ├── linkedin_scraper.py
-│   │   │   ├── remoteok_scraper.py
-│   │   │   ├── remotive_scraper.py
-│   │   │   ├── wellfound_scraper.py
-│   │   │   ├── workday_scraper.py
-│   │   │   └── utils/
-│   │   └── utils/
-│   ├── data/                       # SQLite database
-│   ├── uploads/                    # Temporary resume storage
+│   │   │   ├── job_relevance_screener.py    # Deterministic + optional Mistral screening
+│   │   │   └── scraper_orchestrator.py      # LinkedIn-only orchestration
+│   │   └── scrapers/
+│   │       └── linkedin_scraper.py          # Active scraper
 │   ├── requirements.txt
-│   ├── setup.sh                    # Setup script
-│   └── .env                        # Environment variables
-│
-├── frontend/                       # React app (to be implemented)
-└── README.md
+│   └── setup.sh
+├── frontend/
+│   ├── src/App.js                           # Search, polling, results, Excel download
+│   ├── src/components/
+│   └── src/services/api.js                  # Frontend API client
+├── render.yaml                              # Render deployment config
+└── start.sh                                 # Starts backend + frontend locally
 ```
 
-## Getting Started
+## Local Setup
 
 ### Prerequisites
 
-- Python 3.8+
-- Node.js 16+ (for frontend)
-- Chrome/Chromium (for Playwright/Selenium)
+- Python 3
+- Node.js and npm
 
-### Backend Setup
+### Backend
 
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-   ```
-
-2. **Run setup script:**
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-
-   Or manually:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   playwright install chromium
-   ```
-
-3. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` and add your API keys:
-   ```
-   GEMINI_API_KEY=your_gemini_api_key_here
-   OPENAI_API_KEY=your_openai_api_key_here
-   ```
-
-4. **Run the server:**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-   Server will start at: `http://localhost:8000`
-
-### API Documentation
-
-Once the server is running, visit:
-- **Interactive API Docs**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-## API Endpoints
-
-### Resume Upload & Analysis
-
-**POST** `/api/upload-resume`
-- Upload resume (PDF/DOCX)
-- Returns session ID and extracted profile
-
-**Example:**
 ```bash
-curl -X POST "http://localhost:8000/api/upload-resume" \
-  -F "file=@resume.pdf"
+cd backend
+chmod +x setup.sh
+./setup.sh
 ```
 
-### Job Scraping
+`backend/setup.sh` does the following:
 
-**POST** `/api/scrape-jobs`
-- Start background scraping task
-- Returns task ID for status polling
+- creates `backend/venv`
+- installs Python dependencies from `backend/requirements.txt`
+- installs Playwright Chromium
+- creates `backend/.env` from `backend/.env.example` if missing
+- creates `backend/.env.secrets` from `backend/.env.secrets.example` if missing
+- creates `backend/data`
 
-**Request Body:**
+Run the API:
+
+```bash
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --reload
+```
+
+Backend default URL: [http://localhost:8000](http://localhost:8000)
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Frontend default URL: [http://localhost:3000](http://localhost:3000)
+
+### Start Both Together
+
+From the repository root:
+
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+## Configuration
+
+The backend loads:
+
+- `backend/.env`
+- `backend/.env.secrets` with override priority for secret values
+
+### `backend/.env`
+
+Template values are defined in `backend/.env.example`.
+
+Common settings:
+
+```env
+DATABASE_URL=sqlite:///./data/job_scrapper.db
+SECRET_KEY=your_random_secret_key_here
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+MAX_UPLOAD_SIZE=10485760
+SCRAPING_TIMEOUT=300
+MAX_JOBS_PER_SOURCE=50
+```
+
+### `backend/.env.secrets`
+
+Template values are defined in `backend/.env.secrets.example`.
+
+Optional secret:
+
+```env
+MISTRAL_API_KEY=your_mistral_api_key_here
+```
+
+If `MISTRAL_API_KEY` is not set, the app still runs and falls back to deterministic filtering.
+
+### Frontend Environment
+
+The frontend reads:
+
+```env
+REACT_APP_API_URL=http://localhost:8000
+```
+
+The frontend strips a trailing `/api` automatically if you include it by mistake.
+
+## API
+
+The FastAPI router is mounted under `/api`.
+
+### `GET /`
+
+Basic health/info response:
+
 ```json
 {
-  "session_id": "uuid",
-  "query": "software engineer",
-  "location": "Remote",
-  "max_jobs_per_source": 50,
-  "sources": ["indeed", "remoteok", "remotive"]
+  "name": "Job Scrapper API",
+  "version": "1.0.0",
+  "status": "running"
 }
 ```
 
-**GET** `/api/scraping-status/{task_id}`
-- Check scraping progress
+### `GET /health`
 
-### Job Matching
+Returns service health plus whether Mistral is configured.
 
-**POST** `/api/matched-jobs`
-- Get ranked job matches for resume
+### `POST /api/scrape-jobs`
 
-**Request Body:**
+Starts a background scrape.
+
+Request body:
+
 ```json
 {
-  "session_id": "uuid",
-  "min_score": 30,
-  "limit": 50
+  "role_titles": "Software Engineer, Backend Engineer",
+  "locations": "Remote, New York",
+  "target_jobs": 25,
+  "recent_days": 1
 }
 ```
 
-**Response:**
+Notes:
+
+- `role_titles` is required.
+- `locations` may be blank; blank means any location.
+- `target_jobs` must be between `1` and `200`.
+- `recent_days` must be between `1` and `30`, but the current frontend always sends `1`.
+- The backend creates every role/location combination and scrapes each combination.
+
+Example response:
+
 ```json
 {
-  "session_id": "uuid",
-  "total_matches": 120,
-  "matches": [
+  "task_id": "9d3f4b43-5d9d-4b2c-9e52-4b35d3bcb4d8",
+  "status": "pending",
+  "message": "Scraping task started successfully",
+  "parsed_roles": ["Software Engineer", "Backend Engineer"],
+  "parsed_locations": ["Remote", "New York"],
+  "target_jobs": 25
+}
+```
+
+### `GET /api/scraping-status/{task_id}`
+
+Returns task state:
+
+- `pending`
+- `running`
+- `completed`
+- `failed`
+
+Example response:
+
+```json
+{
+  "task_id": "9d3f4b43-5d9d-4b2c-9e52-4b35d3bcb4d8",
+  "status": "running",
+  "progress": 42,
+  "total_jobs_scraped": 11,
+  "sources_completed": ["linkedin:last_3_days"],
+  "error_message": null,
+  "started_at": "2026-03-08T10:30:00.000000",
+  "completed_at": null
+}
+```
+
+### `POST /api/jobs`
+
+Returns scraped jobs sorted by `posted_date` descending.
+
+Request body:
+
+```json
+{
+  "limit": 25,
+  "task_id": "optional-task-id"
+}
+```
+
+Notes:
+
+- `limit` must be between `1` and `200`.
+- `task_id` is returned in the response for client context, but the current backend does not filter jobs by task.
+- The endpoint currently returns only jobs whose source is `linkedin`.
+
+Example response shape:
+
+```json
+{
+  "task_id": "optional-task-id",
+  "total_jobs": 25,
+  "jobs": [
     {
-      "job": {
-        "title": "Senior Python Developer",
-        "company": "Tech Corp",
-        "location": "Remote",
-        "apply_url": "https://..."
-      },
-      "match_score": 87.5,
-      "match_breakdown": {
-        "skills_score": 35.2,
-        "experience_score": 22.0,
-        "title_score": 18.5,
-        "location_score": 10.0,
-        "job_type_score": 5.0
-      }
+      "id": 1,
+      "title": "Backend Engineer",
+      "company": "Example Inc",
+      "location": "Remote",
+      "job_type": "remote",
+      "employment_type": "full-time",
+      "description": "",
+      "required_skills": [],
+      "required_experience": null,
+      "salary_range": "",
+      "apply_url": "https://www.linkedin.com/jobs/view/1234567890/",
+      "source": "linkedin",
+      "posted_date": "2026-03-08T09:00:00",
+      "scraped_at": "2026-03-08T10:30:05"
     }
   ]
 }
 ```
 
-## Job Sources
+## Scraping Behavior
 
-### Implemented Scrapers
+The current scrape pipeline in `backend/app/api/routes.py` and `backend/app/services/scraper_orchestrator.py` works like this:
 
-| Source | Method | Success Rate | Notes |
-|--------|--------|--------------|-------|
-| **RemoteOK** | API | ✅ High | Public API, reliable |
-| **Remotive** | API | ✅ High | Public API, reliable |
-| **Indeed** | BeautifulSoup | ⚠️ Medium | May encounter anti-bot measures |
-| **LinkedIn** | Playwright | ⚠️ Low | Strong anti-bot, may require auth |
-| **Wellfound** | BeautifulSoup | ⚠️ Medium | May require auth |
-| **Workday** | Selenium | ⚠️ Medium | Requires company-specific URLs |
+1. Parse comma-separated roles and locations.
+2. Create a `ScrapingTask`.
+3. Delete previously stored jobs.
+4. For each role/location combination, scrape LinkedIn guest job listings.
+5. Start with a 1-day posting window.
+6. If the target count is not met, increase the window by 1 day and try again.
+7. Stop when the target count is reached or the search reaches 180 days of backfill.
+8. Persist accepted jobs to SQLite.
 
-### Anti-Bot Strategies
+## Frontend Behavior
 
-- **User agent rotation**
-- **Random delays (2-8 seconds)**
-- **Stealth browser configurations**
-- **Rate limiting per source**
-- **Graceful failure handling**
+The React app currently provides:
 
-## Matching Algorithm
+- a search form for role titles, locations, and target count
+- task polling every 2.5 seconds
+- live result updates while the scrape is still running
+- a table with company, role, location, posted date, and apply link
+- Excel download of the currently loaded jobs
 
-Jobs are scored using a weighted algorithm:
+## Data Storage
 
-| Component | Weight | Method |
-|-----------|--------|--------|
-| **Skills Match** | 40% | TF-IDF + keyword overlap |
-| **Experience Match** | 25% | Years comparison |
-| **Title Match** | 20% | Fuzzy string matching |
-| **Location Match** | 10% | Geographic matching |
-| **Job Type Match** | 5% | Remote/hybrid/onsite |
+SQLite models currently used by the active flow:
 
-**Total Score**: 0-100
+- `jobs`
+- `user_sessions`
+- `scraping_tasks`
 
-## LLM Integration
+Default local database path:
 
-### Resume Analysis Flow
+```text
+backend/data/job_scrapper.db
+```
 
-1. **Parse** resume (PDF/DOCX → text)
-2. **Analyze** with Gemini/OpenAI
-3. **Extract** structured data:
-   - Skills
-   - Experience years
-   - Job titles/roles
-   - Education
-   - Location preference
-   - Job type preference
+One important implementation detail: starting a new scrape clears the existing contents of `jobs` before inserting the new run's results.
 
-### Fallback Strategy
+## Deployment
 
-1. **Try Gemini** (primary, free tier)
-2. **Try OpenAI** (fallback)
-3. **Use regex** (emergency fallback)
+`render.yaml` defines two Render services:
 
-## Environment Variables
+- `job-scrapper-api`
+- `job-scrapper-web`
+
+The backend runs with:
 
 ```bash
-# LLM API Keys
-GEMINI_API_KEY=your_key
-OPENAI_API_KEY=your_key
-
-# Database
-DATABASE_URL=sqlite:///./data/job_scrapper.db
-
-# Security
-SECRET_KEY=random_secret_key
-
-# CORS
-CORS_ORIGINS=http://localhost:3000
-
-# Limits
-MAX_UPLOAD_SIZE=10485760  # 10MB
-SCRAPING_TIMEOUT=300       # 5 minutes
-MAX_JOBS_PER_SOURCE=50
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-## Development
+The frontend is built as a static site with:
 
-### Running Tests
 ```bash
-cd backend
-pytest tests/ -v
+npm ci && npm run build
 ```
 
-### Database Management
+## Quick Manual Test
 
-**Initialize database:**
-```python
-from app.database import init_db
-init_db()
-```
-
-**Drop all tables:**
-```python
-from app.database import drop_db
-drop_db()  # USE WITH CAUTION
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Playwright browser not found**
-   ```bash
-   playwright install chromium
-   ```
-
-2. **Selenium ChromeDriver issues**
-   ```bash
-   # Install Chrome/Chromium
-   # ChromeDriver auto-managed by Selenium 4.6+
-   ```
-
-3. **LinkedIn scraping fails**
-   - Expected - LinkedIn has strong anti-bot measures
-   - Consider implementing cookie-based authentication
-
-4. **LLM API errors**
-   - Check API keys in `.env`
-   - Verify API quota/limits
-   - Check network connectivity
-
-## Performance
-
-- **Resume parsing**: < 2 seconds
-- **LLM analysis**: 3-8 seconds
-- **Job scraping**: 1-3 minutes (parallel)
-- **Matching**: < 1 second for 200 jobs
-
-## Limitations
-
-1. **LinkedIn**: Strong anti-bot measures, may require authentication
-2. **Rate Limits**: Respect source rate limits to avoid IP bans
-3. **Job Freshness**: Cache jobs for 24 hours to reduce scraping load
-4. **LLM Costs**: Use free tiers (Gemini preferred)
-
-## Future Enhancements
-
-- [ ] User authentication & saved profiles
-- [ ] Email notifications for new matches
-- [ ] Application tracking
-- [ ] More job sources (Glassdoor, Monster)
-- [ ] Machine learning-based matching
-- [ ] Salary range analysis
-- [ ] Company culture fit analysis
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues and questions:
-- Create an issue on GitHub
-- Check API documentation at `/docs`
-- Review code comments and docstrings
-
-## Acknowledgments
-
-- Google Gemini for free LLM access
-- RemoteOK & Remotive for public APIs
-- FastAPI for excellent web framework
-- All open-source contributors
-
----
-
-**Built with ❤️ using FastAPI, React, and AI**
+1. Start the backend.
+2. Start the frontend.
+3. Open [http://localhost:3000](http://localhost:3000).
+4. Enter a role such as `Software Engineer`.
+5. Optionally enter a location such as `Remote`.
+6. Start scraping.
+7. Confirm live progress updates appear.
+8. Confirm results appear and can be exported to Excel.
