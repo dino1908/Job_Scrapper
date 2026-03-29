@@ -61,13 +61,13 @@ function App() {
 
   const handleStartScraping = async () => {
     if (!roleTitles.trim()) {
-      setError('Please enter at least one role title.');
+      setError('Enter at least one role title.');
       return;
     }
 
     const parsedTargetJobs = Number(targetJobs);
     if (!Number.isInteger(parsedTargetJobs) || parsedTargetJobs < MIN_TARGET_JOBS || parsedTargetJobs > MAX_TARGET_JOBS) {
-      setError('Please enter a number of jobs between 1 and 200.');
+      setError('Enter a target between 1 and 200 jobs.');
       return;
     }
 
@@ -147,9 +147,9 @@ function App() {
     <div className="min-h-screen bg-gray-100">
       <header className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Job Scrapper</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Job Assistant</h1>
           <p className="text-gray-600 mt-1">
-            LinkedIn jobs scraper with live incremental results
+            Search the most recent jobs and export them.
           </p>
         </div>
       </header>
@@ -164,37 +164,39 @@ function App() {
 
         {step === 'search' && (
           <div className="bg-white rounded-lg shadow-md p-6 max-w-3xl mx-auto space-y-5">
-            <h2 className="text-2xl font-bold text-gray-800">Search Inputs</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Search jobs</h2>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Role Titles (comma-separated)
+                Role titles
               </label>
               <input
                 type="text"
                 value={roleTitles}
                 onChange={(e) => setRoleTitles(e.target.value)}
-                placeholder="SDE, SDE1, Software Engineer, Backend Engineer"
+                placeholder="SDE, Software Engineer, Backend Engineer"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              <p className="text-xs text-gray-500 mt-2">Separate multiple titles with commas.</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Locations (comma-separated)
+                Locations
               </label>
               <input
                 type="text"
                 value={locations}
                 onChange={(e) => setLocations(e.target.value)}
-                placeholder="United States, Remote, New York, San Francisco"
+                placeholder="Remote, New York, San Francisco"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              <p className="text-xs text-gray-500 mt-2">Leave blank to search across all locations.</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Number of Jobs (1-200)
+                Target jobs (up to 200)
               </label>
               <input
                 type="number"
@@ -209,14 +211,14 @@ function App() {
             </div>
 
             <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-              Target: {targetJobs || DEFAULT_TARGET_JOBS} jobs | Scrape expands backward in time until target is reached (or jobs are exhausted)
+              Target: {targetJobs || DEFAULT_TARGET_JOBS} jobs. The scraper keeps going back in time until it reaches the target or runs out of matches.
             </div>
 
             <button
               onClick={handleStartScraping}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200"
             >
-              Start Scraping
+              Start search
             </button>
           </div>
         )}
@@ -224,26 +226,26 @@ function App() {
         {step === 'scraping' && (
           <div className="space-y-6">
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Scraping LinkedIn Jobs</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Searching jobs</h2>
               <p className="text-gray-600">
-                Fetching latest jobs and paging backward until target count is reached...
+                Pulling the latest matches and loading results as they arrive.
               </p>
             </div>
 
             <ScrapingProgress status={scrapingStatus} />
 
             <div className="bg-white rounded-lg shadow-md p-6 max-w-3xl mx-auto">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">Input Summary</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-3">Search summary</h3>
               <div className="space-y-2 text-sm text-gray-700">
                 <div><span className="font-medium">Roles:</span> {meta.parsedRoles.join(', ') || '-'}</div>
                 <div><span className="font-medium">Locations:</span> {meta.parsedLocations.join(', ') || 'Any'}</div>
-                <div><span className="font-medium">Target Jobs:</span> {meta.targetJobs}</div>
-                <div><span className="font-medium">Available Now:</span> {jobs.length}</div>
+                <div><span className="font-medium">Target:</span> {meta.targetJobs}</div>
+                <div><span className="font-medium">Jobs found:</span> {jobs.length}</div>
               </div>
             </div>
 
             <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-800">Live Results ({jobs.length})</h3>
+              <h3 className="text-xl font-bold text-gray-800">Live results ({jobs.length})</h3>
               <button
                 onClick={handleDownloadExcel}
                 disabled={jobs.length === 0}
@@ -253,7 +255,7 @@ function App() {
                     : 'bg-green-600 hover:bg-green-700'
                 }`}
               >
-                Download Excel
+                Download
               </button>
             </div>
             <JobList jobs={jobs} />
@@ -264,7 +266,7 @@ function App() {
           <div className="space-y-6">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Scraped Jobs</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Results</h2>
                 <p className="text-gray-600">{jobs.length} jobs found</p>
               </div>
               <div className="flex items-center gap-3">
@@ -272,13 +274,13 @@ function App() {
                   onClick={handleDownloadExcel}
                   className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200"
                 >
-                  Download Excel
+                  Download
                 </button>
                 <button
                   onClick={handleReset}
                   className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors duration-200"
                 >
-                  New Search
+                  New search
                 </button>
               </div>
             </div>

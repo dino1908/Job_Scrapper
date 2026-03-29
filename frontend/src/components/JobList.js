@@ -14,7 +14,7 @@ const JobList = ({ jobs }) => {
   if (!jobs || jobs.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">No jobs found.</p>
+        <p className="text-gray-500 text-lg">No jobs yet.</p>
       </div>
     );
   }
@@ -30,11 +30,11 @@ const JobList = ({ jobs }) => {
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Company Name</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Role Name</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Company</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Role</th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Posted Date</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Link to Apply</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Posted</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Apply</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -52,7 +52,7 @@ const JobList = ({ jobs }) => {
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-700 underline"
                   >
-                    Apply
+                    Open
                   </a>
                 ) : '-'}
               </td>
