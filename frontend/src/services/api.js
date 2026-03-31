@@ -32,7 +32,6 @@ export const startScraping = async ({
     role_titles: roleTitles,
     locations: locations || '',
     target_jobs: targetJobs,
-    recent_days: 1,
   };
 
   const response = await api.post('/scrape-jobs', payload);
@@ -53,54 +52,15 @@ export const getScrapingStatus = async (taskId) => {
  * Get latest scraped jobs.
  * @param {Object} options - Options
  * @param {number} options.limit - Max jobs
- * @param {string} options.taskId - Optional task id
  * @returns {Promise} - Scraped jobs
  */
 export const getScrapedJobs = async (options = {}) => {
   const payload = {
     limit: options.limit ?? 25,
-    task_id: options.taskId || null,
   };
 
   const response = await api.post('/jobs', payload);
   return response.data;
-};
-
-/**
- * Poll scraping status until complete.
- * @param {string} taskId - Task ID
- * @param {Function} onProgress - Progress callback
- * @param {number} interval - Polling interval in ms
- * @returns {Promise} - Final task status
- */
-export const pollScrapingStatus = async (
-  taskId,
-  onProgress = null,
-  interval = 2000
-) => {
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      try {
-        const status = await getScrapingStatus(taskId);
-
-        if (onProgress) {
-          onProgress(status);
-        }
-
-        if (status.status === 'completed') {
-          resolve(status);
-        } else if (status.status === 'failed') {
-          reject(new Error(status.error_message || 'Scraping failed'));
-        } else {
-          setTimeout(poll, interval);
-        }
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    poll();
-  });
 };
 
 export default api;

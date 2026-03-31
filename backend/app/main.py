@@ -19,8 +19,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    # Create necessary directories
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    # Ensure the SQLite database directory exists.
     os.makedirs("data", exist_ok=True)
 
     # Initialize database

@@ -92,7 +92,6 @@ async def scrape_jobs(
             "role_titles": parsed_roles,
             "locations": parsed_locations,
             "target_jobs": target_jobs,
-            "recent_days": request.recent_days,
         }
     )
     db.add(session)
@@ -114,8 +113,7 @@ async def scrape_jobs(
         task.id,
         parsed_roles,
         parsed_locations,
-        target_jobs,
-        request.recent_days
+        target_jobs
     )
 
     return ScrapeJobsResponse(
@@ -132,8 +130,7 @@ def _background_scraping_task(
     task_id: str,
     roles: List[str],
     locations: List[str],
-    target_jobs: int,
-    recent_days: int
+    target_jobs: int
 ):
     """
     Background task to scrape LinkedIn jobs for role/location combinations.
@@ -204,8 +201,7 @@ def _background_scraping_task(
                     industry="",
                     location=location,
                     recent_days=current_window_days,
-                    limit_per_source=per_combo_limit,
-                    sources=["linkedin"]
+                    limit_per_source=per_combo_limit
                 )
                 flat_jobs = scraper_orchestrator.get_all_jobs_flat(results)
 
@@ -356,7 +352,6 @@ def get_jobs(
     jobs = all_jobs[:request.limit]
 
     return JobsResponse(
-        task_id=request.task_id,
         total_jobs=len(jobs),
         jobs=[JobSchema.model_validate(job) for job in jobs]
     )
