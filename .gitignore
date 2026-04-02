@@ -35,3 +35,9 @@ backend/uploads/*
 
 # Local tool state
 .claude/
+
+# Local planning / AI notes
+mistral_setup.md
+implementation_summary.md
+quicksand.md
+plan.md
