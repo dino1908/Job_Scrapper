@@ -37,7 +37,9 @@ backend/uploads/*
 .claude/
 
 # Local planning / AI notes
-mistral_setup.md
-implementation_summary.md
-quicksand.md
+CHANGES_MISTRAL.md
+FIXES_APPLIED.md
+IMPLEMENTATION_SUMMARY.md
+MISTRAL_SETUP.md
+QUICKSTART.md
 plan.md
