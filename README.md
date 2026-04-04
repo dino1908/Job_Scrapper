@@ -33,18 +33,50 @@ Job Scrapper helps you search recent jobs by role and location, keep widening th
 - Export: Excel `.xlsx`
 - Optional AI filtering: Mistral
 
-## Quick Setup
+## 🚀 Quick Start (Docker)
+
+The easiest way to run Job Assistant is using Docker. This will set up both the frontend and backend automatically.
 
 ### Prerequisites
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
 
+### 1. Clone the Repo
+```bash
+git clone https://github.com/dino1908/Job_Scrapper.git
+cd Job_Scrapper
+```
+
+### 2. Run the Application
+
+#### macOS / Linux
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+#### Windows
+Double-click `run.bat` or run it in Command Prompt/PowerShell:
+```batch
+run.bat
+```
+
+The application will be available at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+---
+
+## 🛠️ Manual Setup (Without Docker)
+
+### Prerequisites
 Install these first:
-
 - Git
 - Python 3.9+
 - Node.js 18+ and npm
 
 ## 1. Clone the Repo
-
 ```bash
 git clone https://github.com/dino1908/Job_Scrapper.git
 cd Job_Scrapper
