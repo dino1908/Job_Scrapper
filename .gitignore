@@ -15,7 +15,9 @@ __pycache__/
 htmlcov/
 
 # Node
+node_modules/
 frontend/node_modules/
+.netlify/
 
 # Local environments / secrets
 backend/venv/

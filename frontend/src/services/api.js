@@ -3,10 +3,22 @@
  */
 import axios from 'axios';
 
-const RAW_API_URL = (process.env.REACT_APP_API_URL || 'http://localhost:8000').trim();
-const API_URL = RAW_API_URL
-  .replace(/\/+$/, '')      // remove trailing slashes
-  .replace(/\/api$/i, '');  // remove accidental /api suffix
+const getApiUrl = () => {
+  const rawApiUrl = (process.env.REACT_APP_API_URL || '').trim();
+  if (rawApiUrl) {
+    return rawApiUrl
+      .replace(/\/+$/, '')
+      .replace(/\/api$/i, '');
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return '';
+};
+
+const API_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,
@@ -44,7 +56,7 @@ export const startScraping = async ({
  * @returns {Promise} - Task status
  */
 export const getScrapingStatus = async (taskId) => {
-  const response = await api.get(`/scraping-status/${taskId}`);
+  const response = await api.get(`/scraping-status?taskId=${encodeURIComponent(taskId)}`);
   return response.data;
 };
 
@@ -59,7 +71,7 @@ export const getScrapedJobs = async (options = {}) => {
     limit: options.limit ?? 25,
   };
 
-  const response = await api.post('/jobs', payload);
+  const response = await api.post(`/jobs?taskId=${encodeURIComponent(options.taskId || '')}`, payload);
   return response.data;
 };
 

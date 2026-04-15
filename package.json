@@ -1,0 +1,18 @@
+{
+  "name": "job-scrapper-netlify",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm install --prefix frontend && npm run build --prefix frontend",
+    "check:functions": "tsc -p tsconfig.netlify.json --noEmit"
+  },
+  "dependencies": {
+    "@netlify/blobs": "latest",
+    "@netlify/functions": "latest",
+    "cheerio": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
+  }
+}

@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "frontend/build"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/scraping-status/:taskId"
+  to = "/.netlify/functions/scraping-status?taskId=:taskId"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

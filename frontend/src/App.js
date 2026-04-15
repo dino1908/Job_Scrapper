@@ -41,6 +41,7 @@ function App() {
       try {
         const jobsResponse = await getScrapedJobs({
           limit: jobsLimit,
+          taskId,
         });
         setJobs(jobsResponse.jobs || []);
       } catch (jobsError) {
